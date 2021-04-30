@@ -2,10 +2,9 @@
 #include "esp_event.h"
 #include "driver/gpio.h"
 
-#include "../include/wifi_init.hpp"
+#include "../include/wifi.hpp"
 
 #define SMART_CONFIG_GPIO 19
-
 #define BTN_PRESSED(p) gpio_get_level((gpio_num_t)p) == 0
 
 void initSmartConfigGPIO()
@@ -23,7 +22,7 @@ extern "C"
     void app_main(void)
     {
 
-        ESP_ERROR_CHECK(nvs_flash_init());
+        ESP_ERROR_CHECK(nvs_flash_init()); // For WiFi credentials restore.
         ESP_ERROR_CHECK(esp_event_loop_create_default()); // Create ESP event loop.
 
         initSmartConfigGPIO();
