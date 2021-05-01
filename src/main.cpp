@@ -66,6 +66,7 @@ static void humidityTask(void *arg)
     int16_t delayTime = (uint16_t)((size_t)arg);
 
     DHT11 sensor;
+    sensor.init(DHT11_DATA_PIN);
 
     while (true)
     {
