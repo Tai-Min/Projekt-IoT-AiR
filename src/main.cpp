@@ -70,7 +70,16 @@ static void humidityTask(void *arg)
 
     while (true)
     {
-        MQTT_publish("humidity", sensor.read(), 1);
-        vTaskDelay(delayTime / portTICK_PERIOD_MS);
+        float result = sensor.read();
+        if (result >= 0)
+        {
+            MQTT_publish("humidity", result, 1);
+        }
+
+        // This sensor is too slow to handle faster readings.
+        if (delayTime < 2000)
+            vTaskDelay(2100 / portTICK_PERIOD_MS);
+        else
+            vTaskDelay(delayTime / portTICK_PERIOD_MS);
     }
 }
