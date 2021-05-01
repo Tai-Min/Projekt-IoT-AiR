@@ -29,6 +29,8 @@ static void networkEventHandler(void *arg, esp_event_base_t eventBase,
 /**
  * @brief Init GPIO that will be used for buttons and leds associated with WiFi.
  * @param smartConfigBtnPin Smart config button's GPIO.
+ * @param smartConfigLED Smart config LED indicator GPIO.
+ * @param WiFiLed WiFi LED indicator GPIO.
  */
 static void initGPIO(gpio_num_t smartConfigBtnPin, gpio_num_t smartConfigLED, gpio_num_t WiFiLed);
 
@@ -133,7 +135,7 @@ static void initGPIO(gpio_num_t smartConfigBtnPin, gpio_num_t smartConfigLED, gp
     // Smart config LED.
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (1ULL << smartConfigLED);
+    io_conf.pin_bit_mask = ((uint64_t)1 << smartConfigLED);
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
     gpio_set_level(smartConfigLED, 0);
@@ -142,7 +144,7 @@ static void initGPIO(gpio_num_t smartConfigBtnPin, gpio_num_t smartConfigLED, gp
     // WiFi LED.
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (1ULL << WiFiLed);
+    io_conf.pin_bit_mask = ((uint64_t)1 << WiFiLed);
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     gpio_config(&io_conf);
     gpio_set_level(WiFiLed, 0);

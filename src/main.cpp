@@ -1,14 +1,10 @@
 #include "nvs_flash.h"
 #include "esp_event.h"
 
+#include "../include/config.hpp"
 #include "../include/wifi.hpp"
 #include "../include/mqtt.hpp"
 #include "../include/http.hpp"
-
-#define SMART_CONFIG_BUTTON_PIN (gpio_num_t)19
-#define SMART_CONFIG_LED_PIN (gpio_num_t)13
-#define WIFI_LED_PIN (gpio_num_t)12
-#define MQTT_LED_PIN (gpio_num_t)14
 
 extern "C"
 {
@@ -29,7 +25,7 @@ extern "C"
 
         WiFi_init(SMART_CONFIG_BUTTON_PIN, SMART_CONFIG_LED_PIN, WIFI_LED_PIN);
         MQTT_init(MQTT_LED_PIN);
-        HTTP_startWebServer();
+        HTTP_init(HTTP_BUTTON_PIN, HTTP_LED_PIN);
 
         while (true)
         {

@@ -1,33 +1,77 @@
 #include "../include/http.hpp"
 #include "../include/websites.hpp"
 #include "../include/mqtt.hpp"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 
 static const char *TAG_HTTP = "HTTP";
 static httpd_handle_t webServer;
+static TaskHandle_t connectionHandlingTask;
+static gpio_num_t _btn;
+static gpio_num_t _led;
 
 // External functions.
-void HTTP_startWebServer();
+void HTTP_init(gpio_num_t btn, gpio_num_t led);
+
+/**
+ * @brief Start HTTP server.
+ */
+static void start();
+
+/**
+ * @brief Stop HTTP server.
+ */
+static void stop();
+
+/**
+ * @brief Init GPIO that will be used for buttons and leds associated with HTTP.
+ * @param btn HTTP toggle button GPIO.
+ * @param led HTTP LED indicator GPIO.
+ */
+static void initGPIO(gpio_num_t btn, gpio_num_t led);
+
+/**
+ * @brief Connect or disconnect HTTP server on button click.
+ * @param arg Unused.
+ */
+static void HTTPConnectionTask(void *arg);
+
+/**
+ * @brief GPIO interrupt handler.
+ * @brief arg unused.
+ */
+static void IRAM_ATTR GPIOISRHandler(void *arg);
 
 // Helper functions.
 /**
- * @brief
- * @param
- * @return
+ * @brief GET handler.
+ * @param req User's request.
+ * @return ESP error.
  */
 static esp_err_t getHandler(httpd_req_t *req);
 
 /**
- * @brief
- * @param
- * @return
+ * @brief POST handler.
+ * @param req User's request.
+ * @return ESP error.
  */
 static esp_err_t postHandler(httpd_req_t *req);
 
 // Function definitions.
-void HTTP_startWebServer()
+void HTTP_init(gpio_num_t btn, gpio_num_t led)
 {
+    initGPIO(btn, led);
+
+    xTaskCreate(HTTPConnectionTask, "HTTP_GPIOISRHandler", 2048, NULL, 10, NULL);
+}
+
+static void start()
+{
+    if(webServer)
+        return;
+
     ESP_LOGI(TAG_HTTP, "Starting webserver");
 
     httpd_uri_t configWebsiteGet = {
@@ -47,6 +91,72 @@ void HTTP_startWebServer()
     ESP_ERROR_CHECK(httpd_start(&webServer, &config));
     ESP_ERROR_CHECK(httpd_register_uri_handler(webServer, &configWebsiteGet));
     ESP_ERROR_CHECK(httpd_register_uri_handler(webServer, &configWebsitePost));
+    gpio_set_level(_led, 1);
+}
+
+static void stop()
+{
+    if (webServer)
+    {
+        ESP_LOGI(TAG_HTTP, "Stopping webserver");
+        httpd_stop(webServer);
+        webServer = NULL;
+        gpio_set_level(_led, 0);
+    }
+}
+
+static void initGPIO(gpio_num_t btn, gpio_num_t led)
+{
+    // Button.
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_POSEDGE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = ((uint64_t)1 << btn);
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&io_conf);
+    gpio_set_level(btn, 0);
+    _btn = btn;
+
+    gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
+    gpio_isr_handler_add(btn, GPIOISRHandler, NULL);
+
+    // LED.
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = ((uint64_t)1 << led);
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
+    gpio_set_level(led, 0);
+    _led = led;
+}
+
+static void HTTPConnectionTask(void *arg)
+{
+    const TickType_t xMaxBlockTime = pdMS_TO_TICKS(500);
+    static bool connected = false;
+
+    connectionHandlingTask = xTaskGetCurrentTaskHandle();
+    BaseType_t xResult;
+    while (true)
+    {
+        xResult = xTaskNotifyWait(pdFALSE, pdFALSE, NULL, xMaxBlockTime);
+        if (xResult == pdPASS)
+        {
+            connected = !connected;
+
+            if (connected)
+                start();
+            else
+                stop();
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+}
+
+static void IRAM_ATTR GPIOISRHandler(void *arg)
+{
+    if(connectionHandlingTask)
+        xTaskNotifyFromISR(connectionHandlingTask, NULL, eNoAction, NULL);
 }
 
 static esp_err_t getHandler(httpd_req_t *req)
