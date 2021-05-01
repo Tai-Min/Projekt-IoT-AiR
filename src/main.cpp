@@ -9,15 +9,10 @@
 #define SMART_CONFIG_GPIO 19
 #define BTN_PRESSED(p) gpio_get_level((gpio_num_t)p) == 0
 
-void initSmartConfigGPIO()
-{
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ULL << SMART_CONFIG_GPIO);
-    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-    gpio_config(&io_conf);
-}
+/**
+ * @brief Init GPIO that will be used to check whether use smart config or saved WiFi credentials.
+ */
+void initSmartConfigGPIO();
 
 extern "C"
 {
@@ -51,6 +46,17 @@ extern "C"
         while (true)
         {
             vTaskDelay(1000 / portTICK_PERIOD_MS);
+            MQTT_publish("test/polska", 0.5, 1);
         }
     }
+}
+
+void initSmartConfigGPIO()
+{
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = (1ULL << SMART_CONFIG_GPIO);
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&io_conf);
 }

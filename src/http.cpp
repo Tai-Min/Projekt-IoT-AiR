@@ -7,25 +7,41 @@
 static const char *TAG_HTTP = "HTTP";
 static httpd_handle_t webServer;
 
+// External functions.
 void HTTP_startWebServer();
+
+// Helper functions.
+/**
+ * @brief
+ * @param
+ * @return
+ */
 static esp_err_t getHandler(httpd_req_t *req);
+
+/**
+ * @brief
+ * @param
+ * @return
+ */
 static esp_err_t postHandler(httpd_req_t *req);
 
-static httpd_uri_t configWebsiteGet = {
-    .uri = mqttURI,
-    .method = HTTP_GET,
-    .handler = getHandler,
-    .user_ctx = NULL};
-
-static httpd_uri_t configWebsitePost = {
-    .uri = mqttURI,
-    .method = HTTP_POST,
-    .handler = postHandler,
-    .user_ctx = NULL};
-
+// Function definitions.
 void HTTP_startWebServer()
 {
     ESP_LOGI(TAG_HTTP, "Starting webserver");
+
+    httpd_uri_t configWebsiteGet = {
+        .uri = mqttURI,
+        .method = HTTP_GET,
+        .handler = getHandler,
+        .user_ctx = NULL};
+
+    httpd_uri_t configWebsitePost = {
+        .uri = mqttURI,
+        .method = HTTP_POST,
+        .handler = postHandler,
+        .user_ctx = NULL};
+
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     webServer = NULL;
     ESP_ERROR_CHECK(httpd_start(&webServer, &config));
@@ -41,13 +57,15 @@ static esp_err_t getHandler(httpd_req_t *req)
     {
         ESP_LOGI(TAG_HTTP, "Received GET on mqtt's uri");
 
+        MQTT_resourceTake();
         const char *brokerIp = MQTT_getIP();
         const char *brokerPort = MQTT_getPort();
         const char *user = MQTT_getUser();
         const char *passwd = MQTT_getPassword();
         const char *ns = MQTT_getNamespace();
-
         snprintf(buf, 4096, mqttWebsite, brokerIp, brokerPort, user, passwd, ns);
+        MQTT_resourceRelease();
+
         ESP_ERROR_CHECK(httpd_resp_send(req, buf, HTTPD_RESP_USE_STRLEN));
     }
 
@@ -59,7 +77,7 @@ static esp_err_t postHandler(httpd_req_t *req)
     static char content[256];
 
     memset(content, 0, sizeof(content));
-    
+
     if (strcmp(req->uri, mqttURI) == 0)
     {
         ESP_LOGI(TAG_HTTP, "Received POST on mqtt's uri");
@@ -115,21 +133,21 @@ static esp_err_t postHandler(httpd_req_t *req)
             }
             else if (strcmp(key, "user") == 0)
             {
-                if(val == NULL)
+                if (val == NULL)
                     val = "";
 
                 MQTT_updateUser(val);
             }
             else if (strcmp(key, "password") == 0)
             {
-                if(val == NULL)
+                if (val == NULL)
                     val = "";
 
                 MQTT_updatePassword(val);
             }
             else if (strcmp(key, "namespace") == 0)
             {
-                if(val == NULL)
+                if (val == NULL)
                     val = "";
 
                 MQTT_updateNamespace(val);

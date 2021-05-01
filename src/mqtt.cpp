@@ -2,8 +2,13 @@
 #include "../include/wifi.hpp"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "mqtt_client.h"
 
 static const char *TAG_MQTT = "MQTT";
+
+static SemaphoreHandle_t mqttResourceSemaphore;
+
+bool connected = false;
 
 static const size_t maxIpSize = 16;
 static const size_t maxPortSize = 6;
@@ -18,86 +23,96 @@ static size_t ipSize = maxIpSize,
               passwordSize = maxPasswordSize,
               namespaceSize = maxNamespaceSize;
 
-/**
- * @brief
- */
-void MQTT_init();
+static esp_mqtt_client_handle_t client;
 
-/**
- * @brief
- */
+// External functions.
+void MQTT_init();
 void MQTT_reInit();
 
-/**
- * @brief
- * @param ip Ip to set.
- */
+void MQTT_resourceTake();
+void MQTT_resourceRelease();
+
+void MQTT_publish(const char *topic, float data, int qos);
+
 void MQTT_updateIP(const char *ip);
-
-/**
- * @brief
- * @param port Port to set.
- */
 void MQTT_updatePort(const char *port);
-
-/**
- * @brief
- * @param usr Username to set.
- */
 void MQTT_updateUser(const char *usr);
-
-/**
- * @brief
- * @param passwd Password to set.
- */
 void MQTT_updatePassword(const char *passwd);
-
-/**
- * @brief
- * @param ns Namespace to set.
- */
 void MQTT_updateNamespace(const char *ns);
 
-/**
- * @brief
- * @return
- */
 const char *MQTT_getIP();
-
-/**
- * @brief
- * @return
- */
 const char *MQTT_getPort();
-
-/**
- * @brief
- * @return
- */
 const char *MQTT_getUser();
-
-/**
- * @brief
- * @return
- */
 const char *MQTT_getPassword();
-
-/**
- * @brief
- * @return
- */
 const char *MQTT_getNamespace();
 
+// Helper functions.
+/**
+ * @brief Publish any primitive data to broker.
+ * @param topic Topic to publish.
+ * @param data Data to publish.
+ * @param qos QoS.
+ * @param formatter Formatter string such as in printf().
+ */
+template <typename T>
+void MQTT_publish_impl(const char *topic, T data, int qos, const char *formatter);
+
+/**
+ * @brief Load MQTT config from flash. 
+ * Must be able to take resources using MQTT_resourceTake().
+ */
 static void loadFromFlash();
 
+/**
+ * @brief 
+ * @param handlerArgs Unused.
+ * @param base Unused.
+ * @param eventId Event id.
+ * @param eventData Unused.
+ */
+static void eventHandler(void *handlerArgs, esp_event_base_t base, int32_t eventId, void *eventData);
+
+// Function definitions.
 void MQTT_init()
 {
+    ESP_LOGI(TAG_MQTT, "Starting MQTT client");
+
+    if (mqttResourceSemaphore == NULL)
+        mqttResourceSemaphore = xSemaphoreCreateMutex();
+
     loadFromFlash();
+
+    const esp_mqtt_client_config_t mqtt_cfg = {
+        .host = ip,
+        .port = (uint32_t)atoi(port),
+        .username = username,
+        .password = password};
+
+    client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_register_event(client, (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID, eventHandler, client);
+    esp_mqtt_client_start(client);
 }
 
 void MQTT_reInit()
 {
+    esp_mqtt_client_disconnect(client);
+    esp_mqtt_client_stop(client);
     MQTT_init();
+}
+
+void MQTT_resourceTake()
+{
+    xSemaphoreTake(mqttResourceSemaphore, (TickType_t)10);
+}
+
+void MQTT_resourceRelease()
+{
+    xSemaphoreGive(mqttResourceSemaphore);
+}
+
+void MQTT_publish(const char *topic, float data, int qos)
+{
+    MQTT_publish_impl(topic, data, qos, "%f");
 }
 
 void MQTT_updateIP(const char *ip)
@@ -180,8 +195,33 @@ const char *MQTT_getNamespace()
     return ns;
 }
 
+template <typename T>
+void MQTT_publish_impl(const char *topic, T data, int qos, const char *formatter)
+{
+    static char dataStr[128];
+    static char completedTopic[64];
+
+    if (!connected)
+        return;
+
+    // Prepare topic.
+    memset(completedTopic, 0, sizeof(completedTopic)); // Zero just in case.
+    memcpy(completedTopic, ns, strlen(ns));            // Prepend namespace.
+    strcat(completedTopic, "/");                       // Append slash.
+    strcat(completedTopic, topic);                     // Append topic.
+
+    // Prepare data.
+    memset(dataStr, 0, sizeof(dataStr));                 // Zero just in case.
+    snprintf(dataStr, sizeof(dataStr), formatter, data); // Replace formatter with given data.
+
+    esp_mqtt_client_publish(client, completedTopic, dataStr, 0, qos, true);
+    ESP_LOGI(TAG_MQTT, "%s\n", completedTopic);
+}
+
 static void loadFromFlash()
 {
+    MQTT_resourceTake();
+
     nvs_handle_t nvsHandle;
     ESP_ERROR_CHECK(nvs_open("mqtt", NVS_READONLY, &nvsHandle));
 
@@ -221,4 +261,23 @@ static void loadFromFlash()
     namespaceSize = maxNamespaceSize;
 
     nvs_close(nvsHandle);
+
+    MQTT_resourceRelease();
+}
+
+static void eventHandler(void *handlerArgs, esp_event_base_t base, int32_t eventId, void *eventData)
+{
+    switch ((esp_mqtt_event_id_t)eventId)
+    {
+    case MQTT_EVENT_CONNECTED:
+        ESP_LOGI(TAG_MQTT, "Connected to broker");
+        connected = true;
+        break;
+    case MQTT_EVENT_DISCONNECTED:
+        ESP_LOGI(TAG_MQTT, "Disconnected from broker");
+        connected = false;
+        break;
+    default:
+        break;
+    }
 }

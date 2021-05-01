@@ -1,4 +1,5 @@
 #pragma once
+
 const char *mqttURI = "/mqtt";
 const char *mqttWebsite = "<!doctype html>"
                           "<html lang=\"en\">"
