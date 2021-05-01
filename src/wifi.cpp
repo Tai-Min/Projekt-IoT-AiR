@@ -9,12 +9,11 @@
 static const char *TAG_WIFI = "WIFI";
 static const char *TAG_SC = "SC";
 
-static const int CONNECTED_BIT = BIT0;
-static EventGroupHandle_t s_wifi_event_group;
+static gpio_num_t _smartConfigLED;
+static gpio_num_t _WiFiLed;
 
 // External functions.
-void WiFi_init(bool useSmartConfig);
-bool WiFi_isConnected();
+void WiFi_init(gpio_num_t smartConfigBtnPin, gpio_num_t smartConfigLED, gpio_num_t WiFiLed);
 
 // Helper functions.
 /**
@@ -26,6 +25,12 @@ bool WiFi_isConnected();
  */
 static void networkEventHandler(void *arg, esp_event_base_t eventBase,
                                 int32_t eventId, void *eventData);
+
+/**
+ * @brief Init GPIO that will be used for buttons and leds associated with WiFi.
+ * @param smartConfigBtnPin Smart config button's GPIO.
+ */
+static void initGPIO(gpio_num_t smartConfigBtnPin, gpio_num_t smartConfigLED, gpio_num_t WiFiLed);
 
 /**
  * @brief Copy data from smart config event struct to WiFi config struct.
@@ -51,11 +56,12 @@ static void stopSmartConfig();
 static void connectToNetwork(wifi_config_t *conf);
 
 // Function definitions.
-void WiFi_init(bool useSmartConfig)
+void WiFi_init(gpio_num_t smartConfigBtnPin, gpio_num_t smartConfigLED, gpio_num_t WiFiLed)
 {
+    initGPIO(smartConfigBtnPin, smartConfigLED, WiFiLed);
+
     ESP_ERROR_CHECK(esp_netif_init()); // Initialize TCP/IP stack.
 
-    s_wifi_event_group = xEventGroupCreate();                     // FreeRTOS event group to store wifi event bits.
     esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta(); // Create wifi station.
     assert(sta_netif);                                            // Check if wifi STA was initialized (no null pointer).
 
@@ -71,8 +77,8 @@ void WiFi_init(bool useSmartConfig)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    // Seek new credentials.
-    if (useSmartConfig)
+    // Button pressed - use smart config via ESPTouch.
+    if (gpio_get_level(smartConfigBtnPin) == 0)
     {
         startSmartConfig();
     }
@@ -83,25 +89,20 @@ void WiFi_init(bool useSmartConfig)
     }
 }
 
-bool WiFi_isConnected()
-{
-    EventBits_t uxBits = xEventGroupWaitBits(s_wifi_event_group, CONNECTED_BIT, false, false, portMAX_DELAY);
-    return uxBits & CONNECTED_BIT;
-}
-
 static void networkEventHandler(void *arg, esp_event_base_t eventBase,
                                 int32_t eventId, void *eventData)
 {
     if (eventBase == WIFI_EVENT && eventId == WIFI_EVENT_STA_DISCONNECTED)
     {
         ESP_LOGI(TAG_WIFI, "Disconnected from network");
+        gpio_set_level(_WiFiLed, 0);
         ESP_ERROR_CHECK(esp_wifi_connect());
-        xEventGroupClearBits(s_wifi_event_group, CONNECTED_BIT);
     }
     else if (eventBase == IP_EVENT && eventId == IP_EVENT_STA_GOT_IP)
     {
         ESP_LOGI(TAG_WIFI, "Connected to network");
-        xEventGroupSetBits(s_wifi_event_group, CONNECTED_BIT);
+        gpio_set_level(_WiFiLed, 1);
+        gpio_set_level(_smartConfigLED, 0);
     }
     else if (eventBase == SC_EVENT && eventId == SC_EVENT_GOT_SSID_PSWD)
     {
@@ -116,6 +117,36 @@ static void networkEventHandler(void *arg, esp_event_base_t eventBase,
     {
         stopSmartConfig();
     }
+}
+
+static void initGPIO(gpio_num_t smartConfigBtnPin, gpio_num_t smartConfigLED, gpio_num_t WiFiLed)
+{
+    // Button.
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = ((uint64_t)1 << smartConfigBtnPin);
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&io_conf);
+    gpio_set_level(smartConfigBtnPin, 0);
+
+    // Smart config LED.
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = (1ULL << smartConfigLED);
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
+    gpio_set_level(smartConfigLED, 0);
+    _smartConfigLED = smartConfigLED;
+
+    // WiFi LED.
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = (1ULL << WiFiLed);
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
+    gpio_set_level(WiFiLed, 0);
+    _WiFiLed = WiFiLed;
 }
 
 static void smartConfigToWiFiConfig(smartconfig_event_got_ssid_pswd_t *sc, wifi_config_t *wc)
@@ -133,6 +164,7 @@ static void smartConfigToWiFiConfig(smartconfig_event_got_ssid_pswd_t *sc, wifi_
 static void startSmartConfig()
 {
     ESP_LOGI(TAG_SC, "Smart config started");
+    gpio_set_level(_smartConfigLED, 1);
     ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
     smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
@@ -141,6 +173,7 @@ static void startSmartConfig()
 static void stopSmartConfig()
 {
     ESP_LOGI(TAG_SC, "Smart config finished");
+    gpio_set_level(_smartConfigLED, 0);
     ESP_ERROR_CHECK(esp_smartconfig_stop());
 }
 

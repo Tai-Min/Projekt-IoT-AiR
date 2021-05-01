@@ -1,10 +1,13 @@
 #pragma once
+#include "driver/gpio.h"
 
 /**
  * @brief Init MQTT client. 
  * Must be able to take resources using MQTT_resourceTake().
+ * 
+ * @param LEDGPIO Led GPIO.
  */
-void MQTT_init();
+void MQTT_init(gpio_num_t LEDGPIO);
 
 /**
  * @brief Reinit MQTT client. Should be called after MQTT_updateX functions.

@@ -1,14 +1,15 @@
 #include "../include/mqtt.hpp"
-#include "../include/wifi.hpp"
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "mqtt_client.h"
+#include "driver/gpio.h"
 
 static const char *TAG_MQTT = "MQTT";
 
 static SemaphoreHandle_t mqttResourceSemaphore;
 
-bool connected = false;
+static bool connected = false;
+static gpio_num_t _led;
 
 static const size_t maxIpSize = 16;
 static const size_t maxPortSize = 6;
@@ -26,7 +27,7 @@ static size_t ipSize = maxIpSize,
 static esp_mqtt_client_handle_t client;
 
 // External functions.
-void MQTT_init();
+void MQTT_init(gpio_num_t LEDGPIO);
 void MQTT_reInit();
 
 void MQTT_resourceTake();
@@ -47,6 +48,16 @@ const char *MQTT_getPassword();
 const char *MQTT_getNamespace();
 
 // Helper functions.
+/**
+ * @brief Init MQTT.
+ */
+void init_impl();
+
+/**
+ * @brief Init GPIO that will be used for MQTT LED.
+ */
+static void initGPIO(gpio_num_t gpio);
+
 /**
  * @brief Publish any primitive data to broker.
  * @param topic Topic to publish.
@@ -73,31 +84,17 @@ static void loadFromFlash();
 static void eventHandler(void *handlerArgs, esp_event_base_t base, int32_t eventId, void *eventData);
 
 // Function definitions.
-void MQTT_init()
+void MQTT_init(gpio_num_t LEDGPIO)
 {
-    ESP_LOGI(TAG_MQTT, "Starting MQTT client");
-
-    if (mqttResourceSemaphore == NULL)
-        mqttResourceSemaphore = xSemaphoreCreateMutex();
-
-    loadFromFlash();
-
-    const esp_mqtt_client_config_t mqtt_cfg = {
-        .host = ip,
-        .port = (uint32_t)atoi(port),
-        .username = username,
-        .password = password};
-
-    client = esp_mqtt_client_init(&mqtt_cfg);
-    esp_mqtt_client_register_event(client, (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID, eventHandler, client);
-    esp_mqtt_client_start(client);
+    initGPIO(LEDGPIO);
+    init_impl();
 }
 
 void MQTT_reInit()
 {
     esp_mqtt_client_disconnect(client);
     esp_mqtt_client_stop(client);
-    MQTT_init();
+    init_impl();
 }
 
 void MQTT_resourceTake()
@@ -195,6 +192,38 @@ const char *MQTT_getNamespace()
     return ns;
 }
 
+void init_impl()
+{
+    ESP_LOGI(TAG_MQTT, "Starting MQTT client");
+
+    if (mqttResourceSemaphore == NULL)
+        mqttResourceSemaphore = xSemaphoreCreateMutex();
+
+    loadFromFlash();
+
+    const esp_mqtt_client_config_t mqtt_cfg = {
+        .host = ip,
+        .port = (uint32_t)atoi(port),
+        .username = username,
+        .password = password};
+
+    client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_register_event(client, (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID, eventHandler, client);
+    esp_mqtt_client_start(client);
+}
+
+static void initGPIO(gpio_num_t led)
+{
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = ((uint64_t)1 << led);
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    gpio_config(&io_conf);
+    gpio_set_level(led, 0);
+    _led = led;
+}
+
 template <typename T>
 void MQTT_publish_impl(const char *topic, T data, int qos, const char *formatter)
 {
@@ -214,7 +243,7 @@ void MQTT_publish_impl(const char *topic, T data, int qos, const char *formatter
     memset(dataStr, 0, sizeof(dataStr));                 // Zero just in case.
     snprintf(dataStr, sizeof(dataStr), formatter, data); // Replace formatter with given data.
 
-    esp_mqtt_client_publish(client, completedTopic, dataStr, 0, qos, true);
+    esp_mqtt_client_publish(client, completedTopic, dataStr, 0, qos, false);
     ESP_LOGI(TAG_MQTT, "%s\n", completedTopic);
 }
 
@@ -271,10 +300,12 @@ static void eventHandler(void *handlerArgs, esp_event_base_t base, int32_t event
     {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG_MQTT, "Connected to broker");
+        gpio_set_level(_led, 1);
         connected = true;
         break;
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG_MQTT, "Disconnected from broker");
+        gpio_set_level(_led, 0);
         connected = false;
         break;
     default:
