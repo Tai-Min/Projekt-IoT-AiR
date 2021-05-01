@@ -165,7 +165,6 @@ static void connectToNetwork(wifi_config_t *conf)
     {
         ESP_LOGI(TAG_WIFI, "Using config from flash");
         ESP_ERROR_CHECK(esp_wifi_get_config(WIFI_IF_STA, &confAlt));
-        printf("AAAAA: %s\n", confAlt.sta.ssid);
         conf = &confAlt;
     }
 

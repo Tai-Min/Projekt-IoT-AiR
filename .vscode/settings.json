@@ -3,6 +3,7 @@
         "chrono": "cpp",
         "random": "cpp",
         "limits": "cpp",
-        "cstdarg": "cpp"
+        "cstdarg": "cpp",
+        "*.ipp": "cpp"
     }
 }

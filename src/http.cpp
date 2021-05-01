@@ -28,29 +28,27 @@ void HTTP_startWebServer()
     ESP_LOGI(TAG_HTTP, "Starting webserver");
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     webServer = NULL;
-    if (httpd_start(&webServer, &config) == ESP_OK)
-    {
-        httpd_register_uri_handler(webServer, &configWebsiteGet);
-        httpd_register_uri_handler(webServer, &configWebsitePost);
-    }
+    ESP_ERROR_CHECK(httpd_start(&webServer, &config));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(webServer, &configWebsiteGet));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(webServer, &configWebsitePost));
 }
 
 static esp_err_t getHandler(httpd_req_t *req)
 {
-    static char buf[4096];
+    static char buf[2048];
 
     if (strcmp(req->uri, mqttURI) == 0)
     {
         ESP_LOGI(TAG_HTTP, "Received GET on mqtt's uri");
 
-        const char *brokerIp = "192.168.0.2137";
-        const char *brokerPort = "2137";
-        const char *user = "Jan";
-        const char *passwd = "HEHE";
-        const char *ns = "ogrod";
+        const char *brokerIp = MQTT_getIP();
+        const char *brokerPort = MQTT_getPort();
+        const char *user = MQTT_getUser();
+        const char *passwd = MQTT_getPassword();
+        const char *ns = MQTT_getNamespace();
 
         snprintf(buf, 4096, mqttWebsite, brokerIp, brokerPort, user, passwd, ns);
-        httpd_resp_send(req, buf, HTTPD_RESP_USE_STRLEN);
+        ESP_ERROR_CHECK(httpd_resp_send(req, buf, HTTPD_RESP_USE_STRLEN));
     }
 
     return ESP_OK;
@@ -58,8 +56,10 @@ static esp_err_t getHandler(httpd_req_t *req)
 
 static esp_err_t postHandler(httpd_req_t *req)
 {
-    static char content[512];
+    static char content[256];
 
+    memset(content, 0, sizeof(content));
+    
     if (strcmp(req->uri, mqttURI) == 0)
     {
         ESP_LOGI(TAG_HTTP, "Received POST on mqtt's uri");
@@ -75,7 +75,7 @@ static esp_err_t postHandler(httpd_req_t *req)
         if (ret <= 0)
         {
             if (ret == HTTPD_SOCK_ERR_TIMEOUT)
-                httpd_resp_send_408(req);
+                ESP_ERROR_CHECK(httpd_resp_send_408(req));
 
             return ESP_FAIL;
         }
@@ -113,19 +113,29 @@ static esp_err_t postHandler(httpd_req_t *req)
             {
                 MQTT_updatePort(val);
             }
-            else if (strcmp(key, "user") == 0 && val != NULL)
+            else if (strcmp(key, "user") == 0)
             {
+                if(val == NULL)
+                    val = "";
+
                 MQTT_updateUser(val);
             }
-            else if (strcmp(key, "password") == 0 && val != NULL)
+            else if (strcmp(key, "password") == 0)
             {
+                if(val == NULL)
+                    val = "";
+
                 MQTT_updatePassword(val);
             }
-            else if (strcmp(key, "namespace") == 0 && val != NULL)
+            else if (strcmp(key, "namespace") == 0)
             {
+                if(val == NULL)
+                    val = "";
+
                 MQTT_updateNamespace(val);
             }
         }
+        MQTT_reInit();
 
         // Reply with same website but updated data.
         getHandler(req);
