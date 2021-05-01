@@ -27,3 +27,6 @@ Measurements are available in following topics:
 * Pressure: \<namespace>/pressure
 * Temperature: \<namespace>/temperature
 * Humidity: \<namespace>/humidity
+
+### Schematic
+![Project's schematics](https://github.com/Tai-Min/Projekt-IoT-AiR/blob/master/media/sch.png "Project's schematics")
