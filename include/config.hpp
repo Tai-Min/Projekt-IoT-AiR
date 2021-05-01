@@ -11,3 +11,8 @@
 #define MQTT_LED_PIN (gpio_num_t)14
 
 #define DHT11_DATA_PIN (gpio_num_t)18
+
+#define I2C_PORT I2C_NUM_0
+#define I2C_SDA (gpio_num_t)21
+#define I2C_SCL (gpio_num_t)22
+#define I2C_FREQ 100000

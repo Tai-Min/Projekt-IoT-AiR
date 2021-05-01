@@ -64,7 +64,7 @@ void HTTP_init(gpio_num_t btn, gpio_num_t led)
 {
     initGPIO(btn, led);
 
-    xTaskCreate(HTTPConnectionTask, "HTTP_GPIOISRHandler", 2048, NULL, 10, NULL);
+    xTaskCreate(HTTPConnectionTask, "HTTPConnectionTask", 2048, NULL, 10, NULL);
 }
 
 static void start()
@@ -156,7 +156,7 @@ static void HTTPConnectionTask(void *arg)
 static void IRAM_ATTR GPIOISRHandler(void *arg)
 {
     if(connectionHandlingTask)
-        xTaskNotifyFromISR(connectionHandlingTask, NULL, eNoAction, NULL);
+        xTaskNotifyFromISR(connectionHandlingTask, 0, eNoAction, NULL);
 }
 
 static esp_err_t getHandler(httpd_req_t *req)
