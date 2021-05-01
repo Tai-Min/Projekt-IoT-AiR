@@ -1,4 +1,4 @@
 #pragma once
 
-void initWiFi(bool useSmartConfig);
-bool isConnectedWiFi();
+void WiFi_init(bool useSmartConfig);
+bool WiFi_isConnected();

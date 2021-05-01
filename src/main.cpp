@@ -3,6 +3,7 @@
 #include "driver/gpio.h"
 
 #include "../include/wifi.hpp"
+#include "../include/http.hpp"
 
 #define SMART_CONFIG_GPIO 19
 #define BTN_PRESSED(p) gpio_get_level((gpio_num_t)p) == 0
@@ -27,14 +28,16 @@ extern "C"
 
         initSmartConfigGPIO();
 
-        // Button pressed - use smart config.
+        // Button pressed - use smart config via ESPTouch.
         bool useSmartConfig = false;
         if (BTN_PRESSED(SMART_CONFIG_GPIO))
         {
             useSmartConfig = true;
         }
 
-        initWiFi(useSmartConfig);
+        WiFi_init(useSmartConfig);
+
+        startWebServer();
 
         while(true){
             vTaskDelay(1000 / portTICK_PERIOD_MS);

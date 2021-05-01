@@ -20,13 +20,13 @@ static EventGroupHandle_t s_wifi_event_group;
  * 
  * @param useSmartConfig Whether to use smart config sniffer instead of flash data.
  */
-void initWiFi(bool useSmartConfig);
+void WiFi_init(bool useSmartConfig);
 
 /**
  * @brief Check whether device is connected to WiFi.
  * @return True if connected.
  */
-bool isConnectedWiFi();
+bool WiFi_isConnected();
 
 /**
  * @brief Manage network events.
@@ -61,7 +61,7 @@ static void stopSmartConfig();
  */
 static void connectToNetwork(wifi_config_t *conf);
 
-void initWiFi(bool useSmartConfig)
+void WiFi_init(bool useSmartConfig)
 {
     ESP_ERROR_CHECK(esp_netif_init()); // Initialize TCP/IP stack.
 
@@ -93,7 +93,7 @@ void initWiFi(bool useSmartConfig)
     }
 }
 
-bool isConnectedWiFi()
+bool WiFi_isConnected()
 {
     EventBits_t uxBits = xEventGroupWaitBits(s_wifi_event_group, CONNECTED_BIT, false, false, portMAX_DELAY);
     return uxBits & CONNECTED_BIT;
