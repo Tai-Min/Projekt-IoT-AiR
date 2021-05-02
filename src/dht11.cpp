@@ -109,7 +109,6 @@ float DHT11::read()
 
     // Check if data is valid.
     uint8_t requiredChecksum = (uint64_t)(tempDecimal + tempIntegral + humDecimal + humIntegral); // Last 8 bits of sum.
-    ESP_LOGI("TEST", "%d, %d, %d, %d, %d, %d", checksum, requiredChecksum, tempDecimal, tempIntegral, humDecimal, humIntegral);
     if (checksum != requiredChecksum)
         return -1;
 

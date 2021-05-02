@@ -38,7 +38,7 @@ extern "C"
 
         // Create tasks.
         xTaskCreate(pressureTask, "pressureTask", 2048, (void *)5000, tskIDLE_PRIORITY, NULL);
-        xTaskCreate(humidityTask, "humidityTask", 2048, (void *)5000, tskIDLE_PRIORITY, NULL);
+        xTaskCreate(humidityTask, "humidityTask", 3072, (void *)5000, tskIDLE_PRIORITY, NULL);
 
         while (true)
         {
