@@ -19,18 +19,18 @@ inline void IRAM_ATTR DHT11::setInput()
     gpio_set_direction(gpio, GPIO_MODE_INPUT);
 }
 
-inline void IRAM_ATTR DHT11::waitForState(bool state, uint64_t tout, bool &ok)
+inline bool IRAM_ATTR DHT11::waitForState(bool state, uint64_t tout)
 {
-    ok = false;
     uint64_t start = esp_timer_get_time();
     while (gpio_get_level(gpio) != state)
     {
         if (esp_timer_get_time() - start > tout)
         {
             setOutputAndPullHigh();
+            return false;
         }
     }
-    ok = true;
+    return true;
 }
 
 inline void IRAM_ATTR DHT11::setOutputAndPullHigh()
@@ -41,6 +41,7 @@ inline void IRAM_ATTR DHT11::setOutputAndPullHigh()
 
 void DHT11::init(gpio_num_t dataPin)
 {
+    gpio_config_t conf;
     conf.intr_type = GPIO_INTR_DISABLE;
     conf.mode = GPIO_MODE_OUTPUT;
     conf.pin_bit_mask = ((uint64_t)1 << dataPin);
@@ -52,8 +53,6 @@ void DHT11::init(gpio_num_t dataPin)
 
 float DHT11::read()
 {
-    bool ok;
-
     // Start signal.
     gpio_set_level(gpio, 0);
     waitMicros(200000);
@@ -62,18 +61,15 @@ float DHT11::read()
     setInput();
 
     // Wait for DHT11 response LOW - HIGH should last max 40us.
-    waitForState(0, 50, ok);
-    if (!ok)
+    if (!waitForState(0, 50))
         return -1;
 
     // Wait for DHT11 response HIGH - LOW should last max 80us.
-    waitForState(1, 90, ok);
-    if (!ok)
+    if(!waitForState(1, 90))
         return -1;
 
     // Wait for DHT11 response LOW - HIGH should last max 80us.
-    waitForState(0, 90, ok);
-    if (!ok)
+    if(!waitForState(0, 90))
         return -1;
 
     // Standard data transmission - 40 bits.
@@ -81,15 +77,13 @@ float DHT11::read()
     for (int i = 39; i >= 0; i--)
     {
         // Wait for next HIGH state - LOW should last max 50us.
-        waitForState(1, 60, ok);
-        if (!ok)
+        if(!waitForState(1, 60))
             return -1;
 
         uint64_t start = esp_timer_get_time(); // Measure time of high state.
 
         // Wait for next LOW state - HIGH should last max 70us.
-        waitForState(0, 90, ok);
-        if (!ok)
+        if(!waitForState(0, 90))
             return -1;
 
         // Measure time of HIGH state.

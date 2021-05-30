@@ -37,23 +37,21 @@ namespace
 }
 
 BMP180::BMP180()
+    : AC1(I2C_readRegister(BMP180_ADDR, AC1_MSB)),
+      AC2(I2C_readRegister(BMP180_ADDR, AC2_MSB)),
+      AC3(I2C_readRegister(BMP180_ADDR, AC3_MSB)),
+      AC4(I2C_readRegister(BMP180_ADDR, AC4_MSB)),
+      AC5(I2C_readRegister(BMP180_ADDR, AC5_MSB)),
+      AC6(I2C_readRegister(BMP180_ADDR, AC6_MSB)),
+      B1(I2C_readRegister(BMP180_ADDR, B1_MSB)),
+      B2(I2C_readRegister(BMP180_ADDR, B2_MSB)),
+      MB(I2C_readRegister(BMP180_ADDR, MB_MSB)),
+      MC(I2C_readRegister(BMP180_ADDR, MC_MSB)),
+      MD(I2C_readRegister(BMP180_ADDR, MD_MSB))
 {
-    AC1 = I2C_readRegister(BMP180_ADDR, AC1_MSB);
-    AC2 = I2C_readRegister(BMP180_ADDR, AC2_MSB);
-    AC3 = I2C_readRegister(BMP180_ADDR, AC3_MSB);
-    AC4 = I2C_readRegister(BMP180_ADDR, AC4_MSB);
-    AC5 = I2C_readRegister(BMP180_ADDR, AC5_MSB);
-    AC6 = I2C_readRegister(BMP180_ADDR, AC6_MSB);
-
-    B1 = I2C_readRegister(BMP180_ADDR, B1_MSB);
-    B2 = I2C_readRegister(BMP180_ADDR, B2_MSB);
-
-    MB = I2C_readRegister(BMP180_ADDR, MB_MSB);
-    MC = I2C_readRegister(BMP180_ADDR, MC_MSB);
-    MD = I2C_readRegister(BMP180_ADDR, MD_MSB);
 }
 
-float BMP180::calculateTemp(int32_t reading)
+float BMP180::trueTemperature(int32_t reading)
 {
     int32_t X1 = (reading - AC6) * AC5 / 32768;
     int32_t X2 = MC * 2048 / (X1 + MD);
@@ -63,7 +61,7 @@ float BMP180::calculateTemp(int32_t reading)
     return T * TEMPERATURE_STEP;
 }
 
-float BMP180::calculatePress(int32_t reading, uint8_t oss)
+float BMP180::truePressure(int32_t reading, uint8_t oss)
 {
     reading = ((reading << 8) >> (8 - oss));
 
@@ -73,15 +71,18 @@ float BMP180::calculatePress(int32_t reading, uint8_t oss)
     int32_t X3 = X1 + X2;
     int32_t B3 = (((AC1 * 4 + X3) << oss) + 2) / 4;
     X1 = AC3 * B6 / 8192;
-    X2 = (B1 *(B6 * B6 / 4096)) / 65536;
+    X2 = (B1 * (B6 * B6 / 4096)) / 65536;
     X3 = ((X1 + X2) + 2) / 4;
     uint32_t B4 = AC4 * (uint32_t)(X3 + 32768) / 32768;
     uint32_t B7 = ((uint32_t)reading - B3) * (50000 >> oss);
 
     int32_t p;
-    if(B7 < 0x80000000){
+    if (B7 < 0x80000000)
+    {
         p = (B7 * 2) / B4;
-    } else{
+    }
+    else
+    {
         p = (B7 / B4) * 2;
     }
 
@@ -127,13 +128,19 @@ float BMP180::read(MeasurementType type)
         break;
     }
 
+    // For pressure readings get temperature first to
+    // update B5 parameter
+    if (type != MeasurementType::TEMPERATURE)
+        read(MeasurementType::TEMPERATURE);
+
     I2C_writeByte(BMP180_ADDR, CTRL_MEAS, measurementTypeValue);
 
     vTaskDelay(delayTime / portTICK_PERIOD_MS);
 
-    int32_t res = I2C_readRegister(BMP180_ADDR, OUT_MSB);
+    uint16_t res = I2C_readRegister(BMP180_ADDR, OUT_MSB);
 
     if (type == MeasurementType::TEMPERATURE)
-        return calculateTemp(res);
-    return calculatePress(res, oss);
+        return trueTemperature(res);
+
+    return truePressure(res, oss);
 }

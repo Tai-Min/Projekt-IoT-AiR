@@ -38,7 +38,7 @@ extern "C"
 
         // Create tasks.
         xTaskCreate(pressureTask, "pressureTask", 2048, (void *)5000, tskIDLE_PRIORITY, NULL);
-        xTaskCreate(humidityTask, "humidityTask", 3072, (void *)5000, tskIDLE_PRIORITY, NULL);
+        xTaskCreate(humidityTask, "humidityTask", 4096, (void *)5000, tskIDLE_PRIORITY, NULL);
 
         while (true)
         {
@@ -51,12 +51,12 @@ static void pressureTask(void *arg)
 {
     uint16_t delayTime = (uint16_t)((size_t)arg);
 
-    BMP180 sensor;
+    static BMP180 sensor;
 
     while (true)
     {
         MQTT_publish("temperature", sensor.read(BMP180::MeasurementType::TEMPERATURE), 1);
-        MQTT_publish("pressure", sensor.read(BMP180::MeasurementType::HIGH_RES), 1);
+        MQTT_publish("pressure", sensor.read(BMP180::MeasurementType::ULTRA_HIGH_RES), 1);
         vTaskDelay(delayTime / portTICK_PERIOD_MS);
     }
 }
@@ -65,21 +65,24 @@ static void humidityTask(void *arg)
 {
     int16_t delayTime = (uint16_t)((size_t)arg);
 
-    DHT11 sensor;
-    sensor.init(DHT11_DATA_PIN);
+    // This sensor is too slow to handle faster measurements.
+    if(delayTime < 2500)
+        delayTime = 2500;
 
+    static DHT11 sensor;
+    static bool fstScan = true;
+    if(fstScan){
+        sensor.init(DHT11_DATA_PIN);
+        fstScan = false;
+    }
+    
     while (true)
     {
         float result = sensor.read();
         if (result >= 0)
-        {
             MQTT_publish("humidity", result, 1);
-        }
 
         // This sensor is too slow to handle faster readings.
-        if (delayTime < 2000)
-            vTaskDelay(2100 / portTICK_PERIOD_MS);
-        else
-            vTaskDelay(delayTime / portTICK_PERIOD_MS);
+        vTaskDelay(delayTime / portTICK_PERIOD_MS);
     }
 }
