@@ -20,8 +20,9 @@ void I2C_init(i2c_port_t  port, gpio_num_t sda, gpio_num_t scl, uint32_t freq);
 void I2C_writeByte(uint8_t addr,  uint8_t reg, uint8_t b);
 
 /**
- * @brief Read single byte from I2C slave.
+ * @brief Read two bytes from I2C slave.
  * @param addr Slave address.
- * @return Byte from slave.
+ * @param reg Register to read data from.
+ * @return Register value from slave.
  */
-uint8_t I2C_readbyte(uint8_t addr, uint8_t reg);
+uint16_t I2C_readRegister(uint8_t addr, uint8_t reg);

@@ -55,8 +55,8 @@ static void pressureTask(void *arg)
 
     while (true)
     {
-        MQTT_publish("pressure", sensor.read(BMP180::MeasurementType::ULTRA_HIGH_RES), 1);
         MQTT_publish("temperature", sensor.read(BMP180::MeasurementType::TEMPERATURE), 1);
+        MQTT_publish("pressure", sensor.read(BMP180::MeasurementType::HIGH_RES), 1);
         vTaskDelay(delayTime / portTICK_PERIOD_MS);
     }
 }
