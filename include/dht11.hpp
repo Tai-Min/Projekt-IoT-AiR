@@ -1,6 +1,7 @@
 #pragma once
 
 #include "driver/gpio.h"
+#include "esp_system.h"
 
 class DHT11
 {
@@ -12,12 +13,12 @@ private:
      * @param us Microseconds to wait.
      */
 
-    inline void IRAM_ATTR waitMicros(uint64_t us);
+    inline void waitMicros(uint64_t us);
 
     /**
      * @brief Set DATA gpio as input.
      */
-    inline void IRAM_ATTR setInput();
+    inline void setInput();
 
     /**
      * @brief Wait for given state.
@@ -25,12 +26,12 @@ private:
      * @param tout Timeout in microseconds.
      * @return True if state appeared.
      */
-    inline bool IRAM_ATTR waitForState(bool state, uint64_t tout);
+    inline bool waitForState(bool state, uint64_t tout);
 
     /**
      * @brief Set DATA pin to output and pull it to VCC.
      */
-    inline void IRAM_ATTR setOutputAndPullHigh();
+    inline void setOutputAndPullHigh();
 
 public:
 

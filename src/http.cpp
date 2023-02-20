@@ -42,7 +42,7 @@ static void HTTPConnectionTask(void *arg);
  * @brief GPIO interrupt handler.
  * @brief arg unused.
  */
-static void IRAM_ATTR GPIOISRHandler(void *arg);
+static void GPIOISRHandler(void *arg);
 
 // Helper functions.
 /**

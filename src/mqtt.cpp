@@ -201,11 +201,11 @@ void init_impl()
 
     loadFromFlash();
 
-    const esp_mqtt_client_config_t mqtt_cfg = {
-        .host = ip,
-        .port = (uint32_t)atoi(port),
-        .username = username,
-        .password = password};
+    esp_mqtt_client_config_t mqtt_cfg;
+    mqtt_cfg.broker.address.uri = ip,
+    mqtt_cfg.broker.address.port = (uint32_t)atoi(port),
+    mqtt_cfg.credentials.username = username,
+    mqtt_cfg.credentials.authentication.password = password;
 
     client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(client, (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID, eventHandler, client);
